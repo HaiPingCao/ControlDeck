@@ -4,7 +4,7 @@
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
 
-// Pins
+// ===================== Pin Definitions =====================
 #define CLK 5
 #define DT 4
 #define SW 6
@@ -12,18 +12,19 @@
 #define BTN_DOWN 16
 #define BTN_MODE 14
 #define BTN_SCR_MODE 15
-// OLED setup
+
+// ===================== OLED Config =====================
 #define SCREEN_WIDTH 128
 #define SCREEN_HEIGHT 64
 #define OLED_ADDR 0x3C
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
 
-// Global variables
+// ===================== Global Variables =====================
 int currentMode = 1;
 const int maxMode = 4;
 unsigned long lastButtonPress = 0;
 
-// Function prototypes
+// ===================== Function Prototypes =====================
 void updateDisplay();
 String modeToString(int mode);
 void rotateLeft();
@@ -33,9 +34,11 @@ void switchDesktopRight();
 void switchDesktopLeft();
 void createNewDesktop();
 void goToDesktop();
+void winCtrlAltF5();
 
+// ===================== Setup =====================
 void setup() {
-  // Initialize inputs
+  // Input configuration
   pinMode(CLK, INPUT);
   pinMode(DT, INPUT);
   pinMode(SW, INPUT_PULLUP);
@@ -44,30 +47,30 @@ void setup() {
   pinMode(BTN_MODE, INPUT_PULLUP);
   pinMode(BTN_SCR_MODE, INPUT_PULLUP);
 
-  // Initialize OLED
+  // OLED setup
   if (!display.begin(SSD1306_SWITCHCAPVCC, OLED_ADDR)) {
-    // If display fails to initialize, halt
-    for (;;);
+    for (;;); // halt if display fails
   }
-  
+
   display.clearDisplay();
   display.setTextSize(1);
   display.setTextColor(SSD1306_WHITE);
   updateDisplay();
 
-  // Initialize HID
+  // HID initialization
   Consumer.begin();
   Keyboard.begin();
   BootMouse.begin();
   BootKeyboard.begin();
 }
 
+// ===================== Main Loop =====================
 void loop() {
-  // Handle mode buttons with debounce
-  static unsigned long lastUp = 0, lastDown = 0;
-  const unsigned long debounceTime = 500;
+  static unsigned long lastUp = 0, lastDown = 0, lastScrMode = 0;
+  const unsigned long debounceTime = 200;
   unsigned long currentTime = millis();
-  // Handle Encoder rotation
+
+  // Encoder rotation
   static int lastStateCLK = digitalRead(CLK);
   int currentStateCLK = digitalRead(CLK);
 
@@ -80,38 +83,51 @@ void loop() {
   }
   lastStateCLK = currentStateCLK;
 
-  // Handle UP button - directly change mode
+  // BTN_UP – previous mode
   if (!digitalRead(BTN_UP) && (currentTime - lastUp > debounceTime)) {
     currentMode = (currentMode == 1) ? maxMode : currentMode - 1;
     updateDisplay();
     lastUp = currentTime;
   }
 
-  // Handle DOWN button - directly change mode
+  // BTN_DOWN – next mode
   if (!digitalRead(BTN_DOWN) && (currentTime - lastDown > debounceTime)) {
     currentMode = (currentMode % maxMode) + 1;
     updateDisplay();
     lastDown = currentTime;
   }
 
-  // Handle encoder push button with debounce
+  // Encoder push button
   if (digitalRead(SW) == LOW && (currentTime - lastButtonPress > debounceTime)) {
     pressButton();
     lastButtonPress = currentTime;
   }
-  
+
+  // BTN_SCR_MODE – trigger Win+Ctrl+Alt+F5
+  if (!digitalRead(BTN_SCR_MODE) && (currentTime - lastScrMode > debounceTime)) {
+    winCtrlAltF5();
+
+    // Feedback on OLED
+    display.clearDisplay();
+    display.setCursor(0, 0);
+    display.println("Hotkey Triggered:");
+    display.println("Win + Ctrl + Alt + F5");
+    display.display();
+    delay(400);
+    updateDisplay();
+
+    lastScrMode = currentTime;
+  }
+
   delay(1);
 }
 
+// ===================== Display =====================
 void updateDisplay() {
   display.clearDisplay();
   display.setCursor(0, 0);
-
-  // Show current mode
   display.println("CURRENT MODE:");
   display.println(modeToString(currentMode));
-  
-
   display.display();
 }
 
@@ -125,6 +141,7 @@ String modeToString(int mode) {
   }
 }
 
+// ===================== Encoder Actions =====================
 void rotateRight() {
   switch (currentMode) {
     case 1:
@@ -134,7 +151,7 @@ void rotateRight() {
       Consumer.write(MEDIA_NEXT);
       break;
     case 3:
-      BootMouse.move(0, 0, -1); // Scroll down
+      BootMouse.move(0, 0, -1); // scroll down
       break;
     case 4:
       switchDesktopRight();
@@ -151,7 +168,7 @@ void rotateLeft() {
       Consumer.write(MEDIA_PREVIOUS);
       break;
     case 3:
-      BootMouse.move(0, 0, 1); // Scroll up
+      BootMouse.move(0, 0, 1); // scroll up
       break;
     case 4:
       switchDesktopLeft();
@@ -159,6 +176,7 @@ void rotateLeft() {
   }
 }
 
+// ===================== Button Actions =====================
 void pressButton() {
   switch (currentMode) {
     case 1:
@@ -176,7 +194,7 @@ void pressButton() {
   }
 }
 
-// Desktop management functions
+// ===================== Desktop Management =====================
 void switchDesktopRight() {
   BootKeyboard.press(KEY_LEFT_GUI);
   BootKeyboard.press(KEY_LEFT_CTRL);
@@ -204,6 +222,16 @@ void createNewDesktop() {
 void goToDesktop() {
   BootKeyboard.press(KEY_LEFT_GUI);
   BootKeyboard.press(KEY_D);
+  delay(50);
+  BootKeyboard.releaseAll();
+}
+
+// ===================== Hotkey Function =====================
+void winCtrlAltF5() {
+  BootKeyboard.press(KEY_LEFT_GUI);
+  BootKeyboard.press(KEY_LEFT_CTRL);
+  BootKeyboard.press(KEY_LEFT_ALT);
+  BootKeyboard.press(KEY_F5);
   delay(50);
   BootKeyboard.releaseAll();
 }
